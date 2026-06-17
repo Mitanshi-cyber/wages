@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Salary Calculator</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main>
+      <section id="loginView" class="login-shell" aria-label="Employee login">
+        <form id="loginForm" class="login-panel">
+          <p class="eyebrow">Wages</p>
+          <h1>Employee Salary Calculator</h1>
+          <label>
+            Employee name
+            <input id="loginEmployee" type="text" autocomplete="name" required value="AJAY KHANNA">
+          </label>
+          <label>
+            Per hour wage
+            <input id="loginWage" type="number" min="0" step="0.01" required value="117.65">
+          </label>
+          <label>
+            Full day hours
+            <input id="loginDayHours" type="number" min="1" step="0.25" required value="8.5">
+          </label>
+          <label>
+            Month
+            <input id="loginMonth" type="month" required>
+          </label>
+          <button type="submit">Open Timesheet</button>
+        </form>
+      </section>
+
+      <section id="appView" class="app-shell hidden" aria-label="Salary calculator">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="employeeLabel">Employee</p>
+            <h1 id="monthTitle">Monthly Salary</h1>
+          </div>
+          <div class="toolbar">
+            <label class="toolbar-field">
+              Month
+              <input id="activeMonth" type="month">
+            </label>
+            <button id="generateBtn" type="button">Show Month</button>
+            <button id="exportBtn" type="button" class="ghost">Export CSV</button>
+            <button id="logoutBtn" type="button" class="ghost">Logout</button>
+          </div>
+        </header>
+
+        <section class="settings" aria-label="Salary settings">
+          <label>
+            Per hour wage
+            <input id="hourlyWage" type="number" min="0" step="0.01">
+          </label>
+          <label>
+            Full day hours
+            <input id="dayHours" type="number" min="1" step="0.25">
+          </label>
+        </section>
+
+        <section class="table-wrap" aria-label="Daily salary entries">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Day</th>
+                <th>In time</th>
+                <th>Out time</th>
+                <th>Hours</th>
+                <th>Total min</th>
+                <th>Total hours</th>
+                <th>Total day</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody id="entryBody"></tbody>
+            <tfoot>
+              <tr>
+                <th colspan="5">Monthly total</th>
+                <td id="totalMinutes">0</td>
+                <td id="totalHours">0:00</td>
+                <td id="totalDays">0.00</td>
+                <td id="totalAmount">0</td>
+              </tr>
+            </tfoot>
+          </table>
+        </section>
+      </section>
+    </main>
+
+    <template id="rowTemplate">
+      <tr>
+        <td data-label="Date"><input class="date" type="date" readonly></td>
+        <td data-label="Day"><output class="day"></output></td>
+        <td data-label="In time"><input class="inTime" type="time"></td>
+        <td data-label="Out time"><input class="outTime" type="time"></td>
+        <td data-label="Hours"><output class="duration"></output></td>
+        <td data-label="Total min"><output class="minutes"></output></td>
+        <td data-label="Total hours"><output class="decimalHours"></output></td>
+        <td data-label="Total day"><output class="totalDay"></output></td>
+        <td data-label="Amount"><output class="amount"></output></td>
+      </tr>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
