@@ -47,10 +47,6 @@
             Per hour wage
             <input id="hourlyWage" type="number" min="0" step="0.01">
           </label>
-          <label>
-            Full day hours
-            <input id="dayHours" type="number" min="1" step="0.25">
-          </label>
           <p id="syncStatus" class="message sync-message" role="status">Connected to Supabase</p>
         </section>
 
@@ -61,6 +57,7 @@
                 <th>Date</th>
                 <th>Day</th>
                 <th>In time</th>
+                <th>Out date</th>
                 <th>Out time</th>
                 <th>Hours</th>
                 <th>Total min</th>
@@ -72,7 +69,7 @@
             <tbody id="entryBody"></tbody>
             <tfoot>
               <tr>
-                <th colspan="5">Monthly total</th>
+                <th colspan="6">Monthly total</th>
                 <td id="totalMinutes">0</td>
                 <td id="totalHours">0:00</td>
                 <td id="totalDays">0.00</td>
@@ -89,6 +86,7 @@
         <td data-label="Date"><input class="date" type="date" readonly></td>
         <td data-label="Day"><output class="day"></output></td>
         <td data-label="In time"><input class="inTime" type="time"></td>
+        <td data-label="Out date"><input class="outDate" type="date"></td>
         <td data-label="Out time"><input class="outTime" type="time"></td>
         <td data-label="Hours"><output class="duration"></output></td>
         <td data-label="Total min"><output class="minutes"></output></td>
