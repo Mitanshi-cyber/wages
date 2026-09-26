@@ -9,6 +9,7 @@ const employeeLabel = document.querySelector("#employeeLabel");
 const monthTitle = document.querySelector("#monthTitle");
 const activeMonth = document.querySelector("#activeMonth");
 const generateBtn = document.querySelector("#generateBtn");
+const clearBtn = document.querySelector("#clearBtn");
 const exportBtn = document.querySelector("#exportBtn");
 const logoutBtn = document.querySelector("#logoutBtn");
 const hourlyWage = document.querySelector("#hourlyWage");
@@ -390,6 +391,33 @@ async function generateMonth() {
   recalculate();
 }
 
+async function clearSavedData() {
+  if (!currentEmployee.trim()) return;
+
+  const prefix = `salary-calculator:${currentEmployee.trim().toLowerCase().replace(/\s+/g, "-")}:`;
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith(prefix)) localStorage.removeItem(key);
+  }
+
+  if (currentEmployeeId) {
+    try {
+      await supabaseRequest(
+        "timesheet_entries",
+        { method: "DELETE" },
+        `?employee_id=eq.${currentEmployeeId}`
+      );
+    } catch (error) {
+      console.error(error);
+      syncStatus.textContent = "Could not clear remote data.";
+      return;
+    }
+  }
+
+  entryBody.replaceChildren();
+  syncStatus.textContent = "Saved data cleared. You can update it now.";
+  monthTitle.textContent = "Monthly Salary";
+}
+
 function escapeCsv(value) {
   const text = String(value ?? "");
   if (!/[",\n]/.test(text)) return text;
@@ -483,6 +511,7 @@ loginForm.addEventListener("submit", (event) => {
 
 generateBtn.addEventListener("click", generateMonth);
 activeMonth.addEventListener("change", generateMonth);
+clearBtn.addEventListener("click", clearSavedData);
 exportBtn.addEventListener("click", exportCsv);
 logoutBtn.addEventListener("click", () => {
   currentEmployeeId = "";
