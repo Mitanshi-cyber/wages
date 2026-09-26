@@ -9,10 +9,10 @@ const employeeLabel = document.querySelector("#employeeLabel");
 const monthTitle = document.querySelector("#monthTitle");
 const activeMonth = document.querySelector("#activeMonth");
 const generateBtn = document.querySelector("#generateBtn");
+const clearBtn = document.querySelector("#clearBtn");
 const exportBtn = document.querySelector("#exportBtn");
 const logoutBtn = document.querySelector("#logoutBtn");
 const hourlyWage = document.querySelector("#hourlyWage");
-const dayHours = document.querySelector("#dayHours");
 const syncStatus = document.querySelector("#syncStatus");
 const entryBody = document.querySelector("#entryBody");
 const rowTemplate = document.querySelector("#rowTemplate");
@@ -38,6 +38,7 @@ let saveTimer = null;
 const defaultSupabaseUrl = "https://hxdrkczpjfburbivrtxp.supabase.co";
 const defaultSupabaseAnonKey =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4ZHJrY3pwamZidXJiaXZydHhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MTYwMDgsImV4cCI6MjA5NzI5MjAwOH0.XaMS7HgpybQpcpo1pnLSTsWgODxcQqMuTc-hoQA0UXo";
+const standardDayHours = 8.5;
 
 const pad = (value) => String(value).padStart(2, "0");
 
@@ -112,6 +113,12 @@ function getDayName(dateValue) {
   return dayNames[date.getDay()] || "";
 }
 
+function nextDateValue(dateValue) {
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setDate(date.getDate() + 1);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 function datesForMonth(monthValue) {
   const [year, month] = monthValue.split("-").map(Number);
   const lastDay = new Date(year, month, 0).getDate();
@@ -172,13 +179,13 @@ async function getOrCreateEmployee() {
   const created = await supabaseRequest(
     "employees",
     {
-      method: "POST",
+        method: "POST",
       prefer: "return=representation",
       body: JSON.stringify({
         name,
         password_hash: passwordHash,
         hourly_wage: numberValue(hourlyWage),
-        day_hours: numberValue(dayHours, 8.5),
+        day_hours: standardDayHours,
       }),
     }
   );
@@ -200,6 +207,7 @@ async function loadRemoteEntries() {
   return entries.reduce((carry, entry) => {
     carry[entry.work_date] = {
       inTime: entry.in_time ? entry.in_time.slice(0, 5) : "",
+      outDate: entry.out_date || entry.work_date,
       outTime: entry.out_time ? entry.out_time.slice(0, 5) : "",
     };
     return carry;
@@ -212,6 +220,7 @@ function saveLocalEntries() {
     const date = row.querySelector(".date").value;
     entries[date] = {
       inTime: row.querySelector(".inTime").value,
+      outDate: row.querySelector(".outDate").value,
       outTime: row.querySelector(".outTime").value,
     };
   });
@@ -225,25 +234,19 @@ function rowPayload(row) {
     work_date: row.querySelector(".date").value,
     day_name: row.querySelector(".day").value,
     in_time: row.querySelector(".inTime").value || null,
+    out_date: row.querySelector(".outDate").value || row.querySelector(".date").value,
     out_time: row.querySelector(".outTime").value || null,
     duration_minutes: result.minutes,
     decimal_hours: Number((result.minutes / 60).toFixed(1)),
     total_day: Number(result.days.toFixed(2)),
     amount: Math.round(result.amount),
     hourly_wage: numberValue(hourlyWage),
-    day_hours: numberValue(dayHours, 8.5),
+    day_hours: standardDayHours,
   };
 }
 
 async function saveRemoteEntries() {
-  if (!currentEmployeeId) return;
-
-  const rows = [...entryBody.querySelectorAll("tr")].map(rowPayload);
-  await supabaseRequest("timesheet_entries", {
-    method: "POST",
-    prefer: "resolution=merge-duplicates",
-    body: JSON.stringify(rows),
-  }, "?on_conflict=employee_id,work_date");
+  if (!currentEmployeeId) return "skipped";
 
   await supabaseRequest(
     "employees",
@@ -251,11 +254,25 @@ async function saveRemoteEntries() {
       method: "PATCH",
       body: JSON.stringify({
         hourly_wage: numberValue(hourlyWage),
-        day_hours: numberValue(dayHours, 8.5),
+        day_hours: standardDayHours,
       }),
     },
     `?id=eq.${currentEmployeeId}`
   );
+
+  const rows = [...entryBody.querySelectorAll("tr")].map(rowPayload);
+  try {
+    await supabaseRequest("timesheet_entries", {
+      method: "POST",
+      prefer: "resolution=merge-duplicates",
+      body: JSON.stringify(rows),
+    }, "?on_conflict=employee_id,work_date");
+  } catch (error) {
+    console.error(error);
+    return "settings-only";
+  }
+
+  return "saved";
 }
 
 function queueSave() {
@@ -264,8 +281,11 @@ function queueSave() {
   syncStatus.textContent = "Saving...";
   saveTimer = window.setTimeout(async () => {
     try {
-      await saveRemoteEntries();
-      syncStatus.textContent = "Saved to Supabase";
+      const result = await saveRemoteEntries();
+      syncStatus.textContent =
+        result === "settings-only"
+          ? "Hourly rate saved. Run the out date query to save rows."
+          : "Saved to Supabase";
     } catch (error) {
       syncStatus.textContent = "Could not save to Supabase";
       console.error(error);
@@ -274,12 +294,14 @@ function queueSave() {
 }
 
 function calculateRow(row) {
+  const inDate = row.querySelector(".date").value;
+  const outDate = row.querySelector(".outDate").value || inDate;
   const inMinutes = parseTime(row.querySelector(".inTime").value);
   const outMinutes = parseTime(row.querySelector(".outTime").value);
   const wage = numberValue(hourlyWage);
-  const standardDay = Math.max(numberValue(dayHours, 8.5), 0.01);
+  const standardDay = standardDayHours;
 
-  if (inMinutes === null || outMinutes === null) {
+  if (!inDate || !outDate || inMinutes === null || outMinutes === null) {
     row.querySelector(".duration").value = "";
     row.querySelector(".minutes").value = "";
     row.querySelector(".decimalHours").value = "";
@@ -288,8 +310,9 @@ function calculateRow(row) {
     return { minutes: 0, amount: 0, days: 0 };
   }
 
-  let minutes = outMinutes - inMinutes;
-  if (minutes < 0) minutes += 24 * 60;
+  const start = new Date(`${inDate}T${row.querySelector(".inTime").value}:00`);
+  const end = new Date(`${outDate}T${row.querySelector(".outTime").value}:00`);
+  const minutes = Math.max(0, Math.round((end - start) / 60000));
 
   const decimalHours = minutes / 60;
   const days = decimalHours / standardDay;
@@ -330,7 +353,16 @@ function addDateRow(dateValue, saved = {}) {
   row.querySelector(".date").value = dateValue;
   row.querySelector(".day").value = getDayName(dateValue);
   row.querySelector(".inTime").value = saved.inTime || "";
+  row.querySelector(".outDate").value = saved.outDate || dateValue;
   row.querySelector(".outTime").value = saved.outTime || "";
+  row.querySelector(".outTime").addEventListener("input", () => {
+    const inTime = row.querySelector(".inTime").value;
+    const outTime = row.querySelector(".outTime").value;
+    const outDate = row.querySelector(".outDate");
+    if (inTime && outTime && outDate.value === dateValue && parseTime(outTime) < parseTime(inTime)) {
+      outDate.value = nextDateValue(dateValue);
+    }
+  });
   row.addEventListener("input", recalculate);
 
   entryBody.append(row);
@@ -359,6 +391,33 @@ async function generateMonth() {
   recalculate();
 }
 
+async function clearSavedData() {
+  if (!currentEmployee.trim()) return;
+
+  const prefix = `salary-calculator:${currentEmployee.trim().toLowerCase().replace(/\s+/g, "-")}:`;
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith(prefix)) localStorage.removeItem(key);
+  }
+
+  if (currentEmployeeId) {
+    try {
+      await supabaseRequest(
+        "timesheet_entries",
+        { method: "DELETE" },
+        `?employee_id=eq.${currentEmployeeId}`
+      );
+    } catch (error) {
+      console.error(error);
+      syncStatus.textContent = "Could not clear remote data.";
+      return;
+    }
+  }
+
+  entryBody.replaceChildren();
+  syncStatus.textContent = "Saved data cleared. You can update it now.";
+  monthTitle.textContent = "Monthly Salary";
+}
+
 function escapeCsv(value) {
   const text = String(value ?? "");
   if (!/[",\n]/.test(text)) return text;
@@ -370,6 +429,7 @@ function exportCsv() {
     "DATE",
     "DAY",
     "IN TIME",
+    "OUT DATE",
     "OUT TIME",
     "HOURS",
     "TOTAL MIN",
@@ -382,6 +442,7 @@ function exportCsv() {
     row.querySelector(".date").value,
     row.querySelector(".day").value,
     row.querySelector(".inTime").value,
+    row.querySelector(".outDate").value,
     row.querySelector(".outTime").value,
     row.querySelector(".duration").value,
     row.querySelector(".minutes").value,
@@ -392,6 +453,7 @@ function exportCsv() {
 
   rows.push([
     "MONTHLY TOTAL",
+    "",
     "",
     "",
     "",
@@ -420,7 +482,6 @@ async function openApp() {
   currentEmployee = loginEmployee.value.trim();
   employeeLabel.textContent = currentEmployee;
   hourlyWage.value = "117.65";
-  dayHours.value = "8.5";
   activeMonth.value = currentMonthValue();
   loginMessage.textContent = "Connecting...";
 
@@ -428,7 +489,6 @@ async function openApp() {
     const employee = await getOrCreateEmployee();
     currentEmployeeId = employee.id;
     hourlyWage.value = employee.hourly_wage || "117.65";
-    dayHours.value = employee.day_hours || "8.5";
   } catch (error) {
     loginMessage.textContent =
       error.message === "Incorrect password."
@@ -451,12 +511,11 @@ loginForm.addEventListener("submit", (event) => {
 
 generateBtn.addEventListener("click", generateMonth);
 activeMonth.addEventListener("change", generateMonth);
+clearBtn.addEventListener("click", clearSavedData);
 exportBtn.addEventListener("click", exportCsv);
 logoutBtn.addEventListener("click", () => {
   currentEmployeeId = "";
   appView.classList.add("hidden");
   loginView.classList.remove("hidden");
 });
-[hourlyWage, dayHours].forEach((input) => {
-  input.addEventListener("input", recalculate);
-});
+hourlyWage.addEventListener("input", recalculate);

@@ -19,6 +19,7 @@ create table if not exists public.timesheet_entries (
   work_date date not null,
   day_name text not null,
   in_time time,
+  out_date date,
   out_time time,
   duration_minutes integer not null default 0,
   decimal_hours numeric(8, 1) not null default 0,
@@ -30,6 +31,9 @@ create table if not exists public.timesheet_entries (
   updated_at timestamptz not null default now(),
   unique (employee_id, work_date)
 );
+
+alter table public.timesheet_entries
+add column if not exists out_date date;
 
 alter table public.employees enable row level security;
 alter table public.timesheet_entries enable row level security;
